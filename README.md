@@ -8,7 +8,8 @@ Automate your local IIS Development Environment with this script, its designed t
 
 Place me into the web root of your site and fill in the details about you local IIS site. In the iis-config.json
 
-`{
+```
+{
 
 ​    "IIS-Site-Name": "test-site",
 
@@ -18,7 +19,8 @@ Place me into the web root of your site and fill in the details about you local 
 
 ​    "bindings": ["test-site.localtest.me"]
 
-}`
+}
+```
 
 - IIS-Site-Name should be the name of the IIS site
 - App-Pool-Name is the name of the App Pool for the site, ideally this should be the same as the IIS Site Name
@@ -42,15 +44,15 @@ Head to the Build events section and in the Post-build event command line add th
 
 ### What this command means
 
-**`%SystemRoot%\sysnative\WindowsPowerShell\v1.0\powershell.exe`**
+`%SystemRoot%\sysnative\WindowsPowerShell\v1.0\powershell.exe`
 
 We fetch the location of your Windows Powershell exe. Some users may not have it in the same place so using: **%SystemRoot%\sysnative** should allow it to work on most windows machines.
 
-**`-ExecutionPolicy Unrestricted`**
+`-ExecutionPolicy Unrestricted`
 
 Since this script is being downloaded from the internet powershell will automatically block it. Setting the Execution Policy to Unrestricted will allow you run the script without having to create your own Powershell file and copy the code and save.
 
-`**-file $(ProjectDir)\IIS-Builder.ps1**`
+`-file $(ProjectDir)\IIS-Builder.ps1`
 
 We then specify that the powershell script is in the same directory as the web project being built using $(ProjectDir).
 
