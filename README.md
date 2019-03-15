@@ -6,7 +6,7 @@ Automate your local IIS Development Environment with this script, its designed t
 
 ## How to use
 
-Place me into the web root of your site and fill in the details about you local IIS site. In the iis-config.json
+Place the IIS-Builder.ps1 and iis-config.json into the web root of your project and fill in the details about you local IIS site. In the iis-config.json
 
 ```
 {
