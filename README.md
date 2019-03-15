@@ -1,12 +1,12 @@
-# iis-builder
+# IIS-Builder
 
 ## Overview
 
-Automate your local IIS Development Environment with this script, its designed to build a development IIS site for your project
+Automate your local IIS Development Environment with this script, its designed to build a development IIS site for your project.
 
 ## How to use
 
-Place me into the web root of your site and fill in the details about you local IIS site.
+Place me into the web root of your site and fill in the details about you local IIS site. In the iis-config.json
 
 `{
 
@@ -20,9 +20,9 @@ Place me into the web root of your site and fill in the details about you local 
 
 }`
 
-- IIS-Site-Name should be the name of the IIS site as it appears in the Sites folder of IIS
+- IIS-Site-Name should be the name of the IIS site
 - App-Pool-Name is the name of the App Pool for the site, ideally this should be the same as the IIS Site Name
-- Bindings is a comma separated list you can specify multiple bindings and the script will add them to your IIS site bindings
+- Bindings is a comma separated list, you can specify multiple bindings and the script will add them to your IIS site bindings
 
 Now just run the script and it will attempt to build the site for you. If a IIS site with the same name already exists it will open that site in your browser and the script will exit.
 
@@ -32,11 +32,13 @@ This script can be setup as a post build event in Visual Studio, so every time y
 
 To set this up right click on the web project and click properties.
 
-Screenshot
+![Web Project Properties](https://i.imgur.com/wzzS8tE.png)
 
 Head to the Build events section and in the Post-build event command line add this:
 
 `%SystemRoot%\sysnative\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Unrestricted -file $(ProjectDir)\IIS-Builder.ps1`
+
+![Build Events](https://i.imgur.com/PUGiiP7.png)
 
 ### What this command means
 
@@ -70,3 +72,6 @@ We give the following entities Modify permissions on the web root:
 - IIS_IUSRS
 - App Pool Identity (As defined in the iis-config.json)
 
+We then loop through the bindings and if they don't contain .localtest.me they are not added to the hosts file. Domains ending with .localtest.me automatically point to itself therefore its not needed in the hosts file.
+
+Made with :heart: at [Moriyama](https://www.moriyama.co.uk/)
