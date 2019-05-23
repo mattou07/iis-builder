@@ -56,6 +56,10 @@ Since this script is being downloaded from the internet powershell will automati
 
 We then specify that the powershell script is in the same directory as the web project being built using $(ProjectDir).
 
+## Would you like the browser to open the website automatically after running the script?
+
+Uncomment lines 64 and 157.
+
 ## What the script does
 
 First the script needs admin privileges so it will attempt to start an elevated powershell process. It then pulls in the properties defined in the json for the site that needs to be built. Using those properties it checks to make sure that the IIS site the user wants to create doesn’t exist already.

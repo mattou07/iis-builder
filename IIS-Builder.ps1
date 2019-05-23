@@ -60,7 +60,8 @@ if(Get-Website -Name "$iisAppName"){
             $binding = "https://$binding"
         }
 
-        Start-Process $binding
+        #Enable me if you would like the browser to automatically open when the script is ran
+        #Start-Process $binding
     }
     exit
 }
@@ -152,5 +153,6 @@ foreach ($binding in $siteBinding){
         $binding = "https://$binding"
     }
 
-    Start-Process $binding
+    #Enable me if you would like the browser to automatically open when the script is ran
+    #Start-Process $binding
 }
