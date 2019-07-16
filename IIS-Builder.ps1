@@ -100,13 +100,13 @@ $iisApp | Set-ItemProperty -Name "applicationPool" -Value $iisAppPoolName
 # Assign certificates to https bindings
 foreach ($binding in $siteBinding){
     #create a https binding
-    if(!(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -match "$binding"})){
+    if(!(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"})){
         New-SelfSignedCertificate -DnsName "$binding" -CertStoreLocation "cert:\LocalMachine\My"
     }
     New-WebBinding -Name $iisAppName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
 	
 
-	$Thumbprint = (Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -match "$binding"}).Thumbprint;
+	$Thumbprint = (Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}).Thumbprint;
     $cert = ( Get-ChildItem -Path "cert:\LocalMachine\My\$Thumbprint" )
 
     #Check if certificate already exisits in trusted certificates
