@@ -8,7 +8,7 @@ Automate your local IIS Development Environment with this script, its designed t
 
 Place the IIS-Builder.ps1 and iis-config.json into the web root of your project and fill in the details about you local IIS site. In the iis-config.json
 
-```js
+```json
 {
   "IIS-Site-Name": "test-site",
   "App-Pool-Name": "test-site",
