@@ -21,7 +21,7 @@ Place the IIS-Builder.ps1 and iis-config.json into the web root of your project 
 - App-Pool-Name is the name of the App Pool for the site, ideally this should be the same as the IIS Site Name
 - Bindings is a comma separated list, you can specify multiple bindings and the script will add them to your IIS site bindings
 
-Now just run the script and it will attempt to build the site for you. If a IIS site with the same name already exists it will open that site in your browser and the script will exit.
+Now just run the script and it will attempt to build the site for you. 
 
 ## Attaching script to Visual Studio Post build event
 
@@ -53,11 +53,11 @@ We then specify that the powershell script is in the same directory as the web p
 
 ## Would you like the browser to open the website automatically after running the script?
 
-Uncomment lines 64 and 157.
+Uncomment line 196. This is commented out by default as it can get annoying.
 
 ## What the script does
 
-First the script needs admin privileges so it will attempt to start an elevated powershell process. It then pulls in the properties defined in the json for the site that needs to be built. Using those properties it checks to make sure that the IIS site the user wants to create doesn’t exist already.
+First the script needs admin privileges so it will attempt to start an elevated powershell process. It then pulls in the properties defined in the json for the site that needs to be built. Using those properties it checks to see if an IIS site already exists. If a site already exists with the name, it will be removed. App pools will not be removed if they already exist.
 
 Next the script will create an IIS site and App pool using the details defined in the json. We then need to setup the bindings. The script allows you to define multiple urls in an array in the json. First the script adds the HTTP bindings as that is straightforward to do.
 
@@ -73,6 +73,8 @@ We give the following entities Modify permissions on the web root:
 - IIS_IUSRS
 - App Pool Identity (As defined in the iis-config.json)
 
-We then loop through the bindings and if they don't contain .localtest.me they are not added to the hosts file. Domains ending with .localtest.me automatically point to itself therefore its not needed in the hosts file.
+We then loop through the bindings and if they don't contain .localtest.me they are not added to the hosts file. Domains ending with .localtest.me automatically point to 127.0.0.1 therefore its not needed in the hosts file.
+
+Please raise an issue if something is not working as expected!
 
 Made with :heart: at [Moriyama](https://www.moriyama.co.uk/)
