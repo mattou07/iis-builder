@@ -1,27 +1,16 @@
-# Ensure our script is elevated to Admin permissions
+#Ensure our script is elevated to Admin permissions
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
-
 {   
 $arguments = "-noexit & '" + $myinvocation.mycommand.definition + "'"
 Start-Process powershell -Verb runAs -ArgumentList $arguments
 Break
 }
 
-Import-Module WebAdministration
-$scriptpath = $MyInvocation.MyCommand.Path
-$dir = Split-Path $scriptpath
-# Grab the json config file
-$iisconfig = Get-Content  "$dir\iis-config.json" | Out-String | ConvertFrom-Json
-$iisAppPoolName = $iisconfig."IIS-Site-Name"
-$iisAppPoolDotNetVersion = $iisconfig."IIS-App-Pool-Dot-Net-Version"
-$iisAppName = $iisconfig."App-Pool-Name"
-$siteBinding = $iisconfig."bindings"
-$hostsPath = "C:\Windows\System32\drivers\etc\hosts"
-
 # Known limitations:
 # - does not handle entries with comments afterwards ("<ip>    <host>    # comment")
 # https://stackoverflow.com/questions/2602460/powershell-to-manipulate-host-file
 #
+
 function add-host([string]$filename, [string]$ip, [string]$hostname) {
     remove-host $filename $hostname
     $ip + "`t`t" + $hostname | Out-File -encoding ASCII -append $filename
@@ -49,101 +38,156 @@ function remove-host([string]$filename, [string]$hostname) {
     }
 }
 
-#verify the site exists before progressing
+function assignUmbracoFolderPermissions($dir, $iisAppPoolName){
+    #Assign Umbraco IIS permissions to parent folder
+    Write-Host $dir
+    $Acl = Get-Acl $dir
+    $Ar = New-Object  system.security.accesscontrol.filesystemaccessrule("IUSR","Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
+    $Acl.SetAccessRule($Ar)
+    Set-Acl -Path $dir -AclObject $Acl
 
-if(Get-Website -Name "$iisAppName"){
-    #Add bindings to hosts file
-    foreach ($binding in $siteBinding){
-    #Look for .localtest.me domain
-    #if the domain is .localtest.me don't create a entry in the hosts file
-        if(-Not ($binding -Match"https://") -or -Not ($binding -Match"http://")){
-            $binding = "https://$binding"
+    $Ar = New-Object  system.security.accesscontrol.filesystemaccessrule("IIS_IUSRS","Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
+    $Acl.SetAccessRule($Ar)
+    Set-Acl -Path $dir -AclObject $Acl
+
+    $iisAppPoolName = "IIS apppool\$iisAppPoolName"
+    $Ar = New-Object  system.security.accesscontrol.filesystemaccessrule($iisAppPoolName,"Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
+    $Acl.SetAccessRule($Ar)
+    Set-Acl -Path $dir -AclObject $Acl
+}
+
+#verification helpers
+function checkSiteExisiting($iisAppName){
+    $exists = $false
+    if(Get-Website -Name "$iisAppName"){
+        $exists = $true
+    }
+    return $exists
+}
+
+function checkAppPoolExists($iisAppPool){
+    #check if the app pool exists
+    return (Test-Path IIS:\AppPools\$iisAppPool -pathType container)
+}
+
+#Buggy still - not in use
+function getExisitingIISBindings($iisAppName){
+    return Get-IISSiteBinding -Name $iisAppName
+}
+
+function getSiteStatus($iis){
+    $exists = checkSiteExisiting($iis.siteName)
+    if($exists){
+        $status = [pscustomobject]@{
+            siteExists = $exists
+            appPoolExists = checkAppPoolExists($iis.appPoolName)
+            #bindings = getExisitingIISBindings($iis.siteName)
         }
-
-        #Enable me if you would like the browser to automatically open when the script is ran
-        #Start-Process $binding
     }
-    exit
+    else {
+        $status = [pscustomobject]@{
+            siteExists = $exists
+            appPoolExists = checkAppPoolExists($iis.appPoolName)
+            bindings = $false
+        }
+    }
+    
+    return $status
 }
 
-#navigate to the app pools root
-Set-Location IIS:\AppPools\
-
-#check if the app pool exists
-if (!(Test-Path $iisAppPoolName -pathType container))
-{
+function createAppPool($appPoolName, $runtimeVersion){
     #create the app pool
-    $appPool = New-Item $iisAppPoolName
-    $appPool | Set-ItemProperty -Name "managedRuntimeVersion" -Value $iisAppPoolDotNetVersion
+    $appPool = New-WebAppPool $appPoolName
+    $appPool | Set-ItemProperty -Name "managedRuntimeVersion" -Value $runtimeVersion
 }
 
-#navigate to the sites root
-Set-Location IIS:\Sites\
-
-#check if the site exists
-if (Test-Path $iisAppName -pathType container)
-{
-    return
-}
-
-
-# create array with http bindings
-$IISBindingArr = @()
-
-foreach ($binding in $siteBinding){
-    $IISBindingArr+= @{protocol="http";bindingInformation=":80:" + $binding}
-}
-#create the site and assign http bindings
-$iisApp = New-Item $iisAppName -bindings $IISBindingArr -physicalPath $dir
-$iisApp | Set-ItemProperty -Name "applicationPool" -Value $iisAppPoolName
-
-# Assign certificates to https bindings
-foreach ($binding in $siteBinding){
-    #create a https binding
-    if(!(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"})){
-        New-SelfSignedCertificate -DnsName "$binding" -CertStoreLocation "cert:\LocalMachine\My"
+function createSite($iis){
+    #Assign http bindings
+    $i = 0
+    foreach ($binding in $iis.siteBindings){
+        if($i -eq 0){
+            New-Website -Name $iis.siteName -PhysicalPath $iis.dir -ApplicationPool $iis.appPoolName -HostHeader $binding
+        }
+        else {
+            New-WebBinding -Name $iis.siteName -IPAddress "*" -Port 80 -HostHeader $binding
+        }
+        $i++
     }
-    New-WebBinding -Name $iisAppName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
-	
-
-	$Thumbprint = (Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}).Thumbprint;
-    $cert = ( Get-ChildItem -Path "cert:\LocalMachine\My\$Thumbprint" )
-
-    #Check if certificate already exisits in trusted certificates
-    if(!(Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Thumbprint -eq $Thumbprint})){
-        $DestStore = new-object System.Security.Cryptography.X509Certificates.X509Store(
-		[System.Security.Cryptography.X509Certificates.StoreName]::Root,"localmachine"
-	)
-    
-
-	$DestStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
-	$DestStore.Add($cert)
-    $DestStore.Close()
-    }
-
-	
-    
-    #Using netsh to assign the ssl certs to the binding. powershell cmdlets seem to add certificates to all https bindings in the web site, not ideal
-    Invoke-Expression "netsh http add sslcert hostnameport=$($binding):$(443) certhash=$Thumbprint appid='{4dc3e181-e14b-4a21-b022-59fc669b0914}' certstorename=MY"
 }
-#Assign Umbraco IIS permissions to parent folder
-Write-Host $dir
-$Acl = Get-Acl $dir
-$Ar = New-Object  system.security.accesscontrol.filesystemaccessrule("IUSR","Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
-$Acl.SetAccessRule($Ar)
-Set-Acl -Path $dir -AclObject $Acl
+#Bindings need to be organised before they are added
+function ensureSSL($iis){
+    # # Assign certificates to https bindings
+    foreach ($binding in $iis.siteBindings){
+        #create a https binding
+        #Check if certificate exists, create a new self cert if it doesn't
+        if(!(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"})){
+            New-SelfSignedCertificate -DnsName "$binding" -CertStoreLocation "cert:\LocalMachine\My"
+        }
+        New-WebBinding -Name $iis.siteName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
+        
+        #Obtain thumbprint of cert 
+        $Thumbprint = (Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}).Thumbprint;
+        $cert = ( Get-ChildItem -Path "cert:\LocalMachine\My\$Thumbprint" )
 
-$Ar = New-Object  system.security.accesscontrol.filesystemaccessrule("IIS_IUSRS","Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
-$Acl.SetAccessRule($Ar)
-Set-Acl -Path $dir -AclObject $Acl
+        #Check if certificate already exisits in trusted certificates
+        if(!(Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Thumbprint -eq $Thumbprint})){
+            $DestStore = new-object System.Security.Cryptography.X509Certificates.X509Store(
+            [System.Security.Cryptography.X509Certificates.StoreName]::Root,"localmachine"
+        )
+        
 
-$iisAppPoolName = "IIS apppool\$iisAppPoolName"
-$Ar = New-Object  system.security.accesscontrol.filesystemaccessrule($iisAppPoolName,"Modify", "ContainerInherit, ObjectInherit", "None", "Allow")
-$Acl.SetAccessRule($Ar)
-Set-Acl -Path $dir -AclObject $Acl
+        $DestStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+        $DestStore.Add($cert)
+        $DestStore.Close()
+        }    
+        #Using netsh to assign the ssl certs to the binding. powershell cmdlets seem to add certificates to all https bindings in the web site, not ideal
+        Invoke-Expression "netsh http add sslcert hostnameport=$($binding):$(443) certhash=$Thumbprint appid='{4dc3e181-e14b-4a21-b022-59fc669b0914}' certstorename=MY"
+    }
+}
 
-#Add bindings to hosts file
-foreach ($binding in $siteBinding){
+# ============== Start Script
+Import-Module WebAdministration
+$scriptpath = $MyInvocation.MyCommand.Path
+$dir = Split-Path $scriptpath
+$hostsPath = "C:\Windows\System32\drivers\etc\hosts"
+Write-Host Starting
+#Load JSON
+$iisconfig = Get-Content  "$dir\iis-config.json" | Out-String | ConvertFrom-Json
+
+$iis = [pscustomobject]@{
+    siteName = $iisconfig."IIS-Site-Name"
+    appPoolName = $iisconfig."App-Pool-Name"
+    siteBindings = $iisconfig."bindings"
+    dir = $dir
+    dotNetVersion = $iisconfig."IIS-App-Pool-Dot-Net-Version"
+    }
+Write-Host "Loaded in JSON"
+#Obtain current status of site
+$status = getSiteStatus($iis)
+$status
+
+# Create App pool if it doesn't exist
+if(!$status.appPoolExists){
+    createAppPool $iis.appPoolName $iis.dotNetVersion
+}
+Write-Host "Ensured App Pool"
+#Easier to remove the IIS site and re create it than editing the bindings
+if($status.siteExists){
+    Remove-WebSite -Name $iis.siteName
+    Write-Host "Site already exists - Removing..."
+}
+
+#Create our IIS site which will add both http and https bindings
+Write-Host "Creating IIS Site"
+createSite $iis
+Write-Host "Assigning folder permissions on Web Root"
+assignUmbracoFolderPermissions $iis.dir $iis.appPoolName
+Write-Host "Ensuring SSL"
+ensureSSL $iis
+
+Write-Host "Adding non localtest.me domains to hosts file"
+# #Add bindings to hosts file
+foreach ($binding in $iis.siteBindings){
     #Look for .localtest.me domain
     #if the domain is .localtest.me don't create a entry in the hosts file
     if(-Not ($binding -Match"localtest.me")){
@@ -156,3 +200,5 @@ foreach ($binding in $siteBinding){
     #Enable me if you would like the browser to automatically open when the script is ran
     #Start-Process $binding
 }
+
+Write-Host "Done, thanks for using IIS Builder"
