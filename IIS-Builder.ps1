@@ -141,7 +141,7 @@ function ensureSSL($iis){
         $DestStore.Close()
         }    
         #Using netsh to assign the ssl certs to the binding. powershell cmdlets seem to add certificates to all https bindings in the web site, not ideal
-        Invoke-Expression "netsh http add sslcert hostnameport=$($binding):$(443) certhash=$Thumbprint appid='{4dc3e181-e14b-4a21-b022-59fc669b0914}' certstorename=MY"
+        (Get-WebBinding -Name $iis.siteName -Port 443 -Protocol "https" -HostHeader $binding).AddSslCertificate($Thumbprint, "my")
     }
 }
 
