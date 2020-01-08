@@ -1,12 +1,28 @@
 # IIS-Builder
 
+
+
+
 ## Overview
 
 Automate your local IIS Development Environment with this script, its designed to build a development IIS site for your project.
 
-## How to use
+## Quick Start
 
-Place the IIS-Builder.ps1 and iis-config.json into the web root of your project and fill in the details about you local IIS site. In the iis-config.json
+The easiest way to download IIS builder is to just use the two powershell commands below inside your web root. 
+
+```powershell
+(new-object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/mattou07/iis-builder/master/IIS-Builder.ps1','IIS-Builder.ps1')
+
+(new-object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/mattou07/iis-builder/master/iis-config.json','iis-config.json')
+```
+The two commands will use System.Net.WebClient to download the needed files. Similar to wget in linux.
+
+Here is a gif demonstrating the process:
+
+![Gif demonstrating how to download the script and JSON](https://i.imgur.com/9FCteS0.gif)
+
+Open the JSON file and edit the contents to set the **Site name**, **App Pool name** and **bindings**. You can leave the dot net version as the default value.
 
 ```json
 {
@@ -19,11 +35,15 @@ Place the IIS-Builder.ps1 and iis-config.json into the web root of your project 
 
 - IIS-Site-Name should be the name of the IIS site
 - App-Pool-Name is the name of the App Pool for the site, ideally this should be the same as the IIS Site Name
-- Bindings is a comma separated list, you can specify multiple bindings and the script will add them to your IIS site bindings
+- Bindings is a comma separated list, you can specify multiple bindings and the script will add both a HTTP and HTTPS binding to your IIS site
 
-Now just run the script and it will attempt to build the site for you. 
+Then run the script by right clicking the **IIS-Builder.ps1** file and clicking **Run with Powershell** or typing **.\IIS-Builder.ps1** inside powershell if its open in your web root. 
 
-## Attaching script to Visual Studio Post build event
+No need to open an eleveted powershell session it will open its own elevated session.
+
+## Additional tips
+
+### Attaching script to Visual Studio Post build event
 
 This script can be setup as a post build event in Visual Studio, so every time you build the project the script will run.
 
@@ -37,7 +57,7 @@ Head to the Build events section and in the Post-build event command line add th
 
 ![Build Events](https://i.imgur.com/PUGiiP7.png)
 
-### What this command means
+#### What this command means
 
 `%SystemRoot%\sysnative\WindowsPowerShell\v1.0\powershell.exe`
 
@@ -51,9 +71,9 @@ Since this script is being downloaded from the internet powershell will automati
 
 We then specify that the powershell script is in the same directory as the web project being built using $(ProjectDir).
 
-## Would you like the browser to open the website automatically after running the script?
+### Would you like the browser to open the website automatically after running the script?
 
-Uncomment line 196. This is commented out by default as it can get annoying.
+Uncomment line 201. This is commented out by default as it can get annoying.
 
 ## What the script does
 
@@ -63,9 +83,9 @@ Next the script will create an IIS site and App pool using the details defined i
 
 Now we need to setup the HTTPS bindings, first we create a New-SelfSignedCertificate for each binding and set the Dns name to be the one of the bindings we have defined in the json. Now that we have a certificate created we can create the binding for the IIS site.
 
-The next part will take our newly created certificates and assign it to our bindings using a netsh command. For the certificates to be trusted by the browser we add it to the Root directory of the local machine.
+The next part will take our newly created certificates and assign it to our bindings. For the certificates to be trusted by the browser we add it to the Root directory of the local machine.
 
-We then need to setup the correct file permissions on the folder. This was primarily setup for Umbraco you may want to enforce stricter permissions on your local site for testing.
+We then need to setup the correct file permissions on the folder. This was primarily setup for Umbraco you may want to enforce stricter permissions or assign other entities to meet your requirements.
 
 We give the following entities Modify permissions on the web root:
 
@@ -78,3 +98,5 @@ We then loop through the bindings and if they don't contain .localtest.me they a
 Please raise an issue if something is not working as expected!
 
 Made with :heart: at [Moriyama](https://www.moriyama.co.uk/)
+
+[My devops focused blog](https://mu7.dev)
