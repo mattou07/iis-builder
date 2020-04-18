@@ -114,28 +114,87 @@ function createSite($iis){
         $i++
     }
 }
+
+function identifyLatestCertificate($certs){ 
+    Write-Host $certs.count " Certificates found for $binding identifying latest"
+    $latest = ""
+    foreach ($cert in $certs){
+        if($latest -eq ""){
+            #Load our first cert into latest
+            $latest = $cert
+        }
+        else {
+            if($latest.NotAfter -lt $cert.NotAfter){
+                #if latest expiry is before the next cert replace latest
+                $latest = $cert
+            }
+        }
+    }
+    return $latest
+}
+
+function deleteCerts($certs){
+    foreach ($cert in $certs){
+        Remove-Item -LiteralPath $cert.PSPath
+        Write-Host "Deleted redundant cert with Thumbprint" $cert.Thumbprint
+    }
+}
+
+function createCert($binding){
+    $newCert = New-SelfSignedCertificate -DnsName "$binding" -CertStoreLocation "cert:\LocalMachine\My"
+    Write-Host "Created new certificate with Thumbprint" $newCert.Thumbprint
+    return $newCert
+}
+
+function rationaliseCerts($binding){
+    $certs = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}
+    Write-Host "Checking for existing certificate"
+    if($certs){
+        #Identify and remove multiple certificates
+        if($certs.count -gt 1){
+            $latestCert = identifyLatestCertificate($certs)
+            $redundantCerts = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding" -and $_.Thumbprint -ne $latestCert.Thumbprint}
+            deleteCerts($redundantCerts)
+        }
+
+        #Attempt to get the certificate
+        $cert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}
+        Write-Host "Found " $cert.count "certificates using the CNAME of " $binding
+        Write-Host "Found Cert expires on" $cert.NotAfter 
+        #Check if the certificate is close to expiry
+        if($cert.NotAfter -le (Get-Date).AddDays(30)){
+            Write-Host "Certificate will expire in less than 30 days, renewing..."
+            deleteCerts($cert)
+            $cert = createCert($binding)
+            
+        }
+        
+    }
+    else {
+        #No certificate was found
+        Write-Host "No certificate was found creating one.."
+        $cert = createCert($binding)
+    }
+
+    return $cert.Thumbprint
+}
+
 #Bindings need to be organised before they are added
 function ensureSSL($iis){
     # # Assign certificates to https bindings
     foreach ($binding in $iis.siteBindings){
         #create a https binding
         #Check if certificate exists, create a new self cert if it doesn't
-        if(!(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"})){
-            New-SelfSignedCertificate -DnsName "$binding" -CertStoreLocation "cert:\LocalMachine\My"
-        }
+        $cert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}
+        $Thumbprint = rationaliseCerts($binding)
         New-WebBinding -Name $iis.siteName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
         
-        #Obtain thumbprint of cert 
-        $Thumbprint = (Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}).Thumbprint;
-        $cert = ( Get-ChildItem -Path "cert:\LocalMachine\My\$Thumbprint" )
-
         #Check if certificate already exisits in trusted certificates
         if(!(Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Thumbprint -eq $Thumbprint})){
             $DestStore = new-object System.Security.Cryptography.X509Certificates.X509Store(
             [System.Security.Cryptography.X509Certificates.StoreName]::Root,"localmachine"
         )
         
-
         $DestStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
         $DestStore.Add($cert)
         $DestStore.Close()
