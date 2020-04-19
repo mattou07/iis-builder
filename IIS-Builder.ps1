@@ -155,6 +155,9 @@ function rationaliseCerts($binding){
             $latestCert = identifyLatestCertificate($certs)
             $redundantCerts = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding" -and $_.Thumbprint -ne $latestCert.Thumbprint}
             deleteCerts($redundantCerts)
+            $redundantRootCerts = Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Subject -eq "CN=$binding" -and $_.Thumbprint -ne $latestCert.Thumbprint}
+            Write-Host "Found " $redundantRootCerts.count "redundant Trusted Root certs for " $binding
+            deleteCerts($redundantRootCerts)
         }
 
         #Attempt to get the certificate
@@ -185,8 +188,10 @@ function ensureSSL($iis){
     foreach ($binding in $iis.siteBindings){
         #create a https binding
         #Check if certificate exists, create a new self cert if it doesn't
-        $cert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}
         $Thumbprint = rationaliseCerts($binding)
+        Write-Host "Rationalised Thumbprint " $Thumbprint
+        $cert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}
+        Write-Host "Picked Cert after search " $cert.Thumbprint
         New-WebBinding -Name $iis.siteName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
         
         #Check if certificate already exisits in trusted certificates
