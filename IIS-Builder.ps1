@@ -155,9 +155,13 @@ function rationaliseCerts($binding){
             $latestCert = identifyLatestCertificate($certs)
             $redundantCerts = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding" -and $_.Thumbprint -ne $latestCert.Thumbprint}
             deleteCerts($redundantCerts)
-            $redundantRootCerts = Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Subject -eq "CN=$binding" -and $_.Thumbprint -ne $latestCert.Thumbprint}
-            Write-Host "Found " $redundantRootCerts.count "redundant Trusted Root certs for " $binding
-            deleteCerts($redundantRootCerts)
+            
+            #WARNING! The code below will delete expired certs from your trusted certificate store enable at your own risk.
+            #Check if cert is in trusted store and remove it
+
+            # $redundantRootCerts = Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Subject -eq "CN=$binding" -and $_.Thumbprint -ne $latestCert.Thumbprint}
+            # Write-Host "Found " $redundantRootCerts.count "redundant Trusted Root certs for " $binding
+            # deleteCerts($redundantRootCerts)
         }
 
         #Attempt to get the certificate
@@ -179,7 +183,7 @@ function rationaliseCerts($binding){
         $cert = createCert($binding)
     }
 
-    return $cert.Thumbprint
+    return $cert
 }
 
 #Bindings need to be organised before they are added
@@ -188,14 +192,17 @@ function ensureSSL($iis){
     foreach ($binding in $iis.siteBindings){
         #create a https binding
         #Check if certificate exists, create a new self cert if it doesn't
-        $Thumbprint = rationaliseCerts($binding)
-        Write-Host "Rationalised Thumbprint " $Thumbprint
+        Write-Host "Ensuring Certificate for $binding"
+        $cert = rationaliseCerts($binding)
+        Write-Host "Rationalised Thumbprint " $cert.Thumbprint
         $cert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object {$_.Subject -eq "CN=$binding"}
         Write-Host "Picked Cert after search " $cert.Thumbprint
         New-WebBinding -Name $iis.siteName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
         
         #Check if certificate already exisits in trusted certificates
-        if(!(Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Thumbprint -eq $Thumbprint})){
+        if(!(Get-ChildItem -Path Cert:\LocalMachine\Root | Where-Object {$_.Thumbprint -eq $cert.Thumbprint})){
+            
+            Write-Host "Certificate is not in trusted store. Adding..."
             $DestStore = new-object System.Security.Cryptography.X509Certificates.X509Store(
             [System.Security.Cryptography.X509Certificates.StoreName]::Root,"localmachine"
         )
@@ -205,7 +212,7 @@ function ensureSSL($iis){
         $DestStore.Close()
         }    
         #Using netsh to assign the ssl certs to the binding. powershell cmdlets seem to add certificates to all https bindings in the web site, not ideal
-        (Get-WebBinding -Name $iis.siteName -Port 443 -Protocol "https" -HostHeader $binding).AddSslCertificate($Thumbprint, "my")
+        (Get-WebBinding -Name $iis.siteName -Port 443 -Protocol "https" -HostHeader $binding).AddSslCertificate($cert.Thumbprint, "my")
     }
 }
 
@@ -228,7 +235,6 @@ $iis = [pscustomobject]@{
 Write-Host "Loaded in JSON"
 #Obtain current status of site
 $status = getSiteStatus($iis)
-$status
 
 # Create App pool if it doesn't exist
 if(!$status.appPoolExists){
@@ -263,6 +269,11 @@ foreach ($binding in $iis.siteBindings){
 
     #Enable me if you would like the browser to automatically open when the script is ran
     #Start-Process $binding
+}
+
+Write-Host "Bindings added"
+foreach ($binding in $iis.siteBindings){
+    Write-Host "$binding"
 }
 
 Write-Host "Done, thanks for using IIS Builder"
