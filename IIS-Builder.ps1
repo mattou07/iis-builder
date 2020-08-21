@@ -1,5 +1,3 @@
-param ($path)
-
 #Ensure our script is elevated to Admin permissions
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
 {   
@@ -220,14 +218,24 @@ function ensureSSL($iis){
 
 # ============== Start Script
 
+if ($env:PROCESSOR_ARCHITEW6432 -eq "AMD64") {
+
+    write-warning "Relaunching in 64 bit."
+    &"$env:WINDIR\sysnative\windowspowershell\v1.0\powershell.exe" -NonInteractive -NoProfile -file "$($myInvocation.InvocationName)" $args
+    
+    exit $lastexitcode
+}
+
+
 Import-Module WebAdministration
+
 $scriptpath = $MyInvocation.MyCommand.Path
 $dir = Split-Path $scriptpath
 
 # Check for optional path argument - and use if specified.
 
-IF((![string]::IsNullOrWhiteSpace($path)) -and (Test-Path $path)) {            
-    $dir = $path            
+IF((![string]::IsNullOrWhiteSpace($args[0])) -and (Test-Path $args[0])) {            
+    $dir = $args[0]         
 }
 
 $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
