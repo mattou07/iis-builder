@@ -1,3 +1,5 @@
+param ($path)
+
 #Ensure our script is elevated to Admin permissions
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
 {   
@@ -217,11 +219,20 @@ function ensureSSL($iis){
 }
 
 # ============== Start Script
+
 Import-Module WebAdministration
 $scriptpath = $MyInvocation.MyCommand.Path
 $dir = Split-Path $scriptpath
+
+# Check for optional path argument - and use if specified.
+
+IF((![string]::IsNullOrWhiteSpace($path)) -and (Test-Path $path)) {            
+    $dir = $path            
+}
+
 $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
-Write-Host Starting
+Write-Host "Starting in $dir"
+
 #Load JSON
 $iisconfig = Get-Content  "$dir\iis-config.json" | Out-String | ConvertFrom-Json
 
