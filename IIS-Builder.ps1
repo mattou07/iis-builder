@@ -1,7 +1,7 @@
 #Ensure our script is elevated to Admin permissions
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
 {   
-$arguments = "-noexit & '" + $myinvocation.mycommand.definition + "'"
+$arguments = "-noexit & '" + $myinvocation.mycommand.definition + "'" + " " + $args
 Start-Process powershell -Verb runAs -ArgumentList $arguments
 Break
 }
