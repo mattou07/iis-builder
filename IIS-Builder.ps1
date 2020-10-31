@@ -1,11 +1,39 @@
-#Ensure our script is elevated to Admin permissions
-If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
-{   
-$arguments = "-noexit & '" + $myinvocation.mycommand.definition + "'"
-Start-Process powershell -Verb runAs -ArgumentList $arguments
-Break
+param ([string]$path)
+
+$script = $myinvocation.mycommand.definition
+$dir = Split-Path $MyInvocation.MyCommand.Path
+Write-Host "Script location $script"
+Write-Host "Script started in $dir"
+
+if((![string]::IsNullOrWhiteSpace($path))) {
+    if((Test-Path $path)){
+        if([System.IO.Path]::IsPathRooted($path)){
+            $dir = $path
+        }
+        else {
+            $dir = Resolve-Path -Path $path
+        }
+        Write-Host "Path has been supplied passing in: $dir as working directory"
+    }
+    else {
+        Write-Host "Unable to locate $path please provide a valid path"
+        exit
+    }
 }
 
+if ((Test-Path "$dir\iis-config.json") -eq $false){
+    Write-Host "Could not find iis-config.json in $dir"
+    exit
+}
+
+#Ensure our script is elevated to Admin permissions
+If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
+{
+    Write-Host "Script has been opened without Admin permissions, attempting to restart as admin"
+    $arguments = "-noexit & '" + $script + "'","-path $dir"
+    Start-Process powershell -Verb runAs -ArgumentList $arguments
+    Break
+}
 # Known limitations:
 # - does not handle entries with comments afterwards ("<ip>    <host>    # comment")
 # https://stackoverflow.com/questions/2602460/powershell-to-manipulate-host-file
@@ -218,10 +246,8 @@ function ensureSSL($iis){
 
 # ============== Start Script
 Import-Module WebAdministration
-$scriptpath = $MyInvocation.MyCommand.Path
-$dir = Split-Path $scriptpath
 $hostsPath = "C:\Windows\System32\drivers\etc\hosts"
-Write-Host Starting
+Write-Host "Starting in $dir"
 #Load JSON
 $iisconfig = Get-Content  "$dir\iis-config.json" | Out-String | ConvertFrom-Json
 
