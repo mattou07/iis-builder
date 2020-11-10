@@ -101,6 +101,28 @@ Ensure **Use Output window** is **enabled** this will allow you to see the outpu
 
 To prevent IIS Builder popping up an Elevated Powershell Window, open Visual Studio as Admin. However this is not necessary.
 
+### Setup a Powershell Alias
+
+If you love using the terminal you could setup a Powershell Alias. Where all you need to do is navigate to your folder via Powershell and type **IISBuilder** or whatever alias/shortcut you prefer. This then runs IIS-Builder.ps1 in your current working directory:
+
+![Running IISBuilder as a Powershell Alias](https://i.imgur.com/jN0SiDp.png)
+
+To set this up you need to identify where your Powershell user profile lives, by typing:  `echo $profile` 
+
+This will reveal where Powershell thinks the User profile lives. Usually its **~Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1**. Adding any code within this file will be executed on each Powershell session for your User. When you set an Alias its forgotten when you close the Powershell session. By setting our alias in our profile, Powershell will create the alias each time we start a Powershell Session 
+
+Navigate to your profile location and open the **Microsoft.PowerShell_profile.ps1** file. If it doesn't exist **create** it. Then add the following code to setup the alias:
+
+```powershell
+Function IISBuilderFunc {C:\your-path-to-iisbuilder\IIS-Builder.ps1 -Path $(Get-Location)}
+
+Set-Alias -Name IISBuilder -Value IISBuilderFunc
+```
+
+Make sure to provide the correct path to where the IIS-Builder.ps1 file lives. Feel free to change the Alias name to whatever you wish or even rename the function. These two lines tell Powershell to create an Alias called IISBuilder that triggers the function IISBuilderFunc above. The function just calls the IISBuilder script file and passes in the current location of the terminal as the **-Path** parameter allowing you to run the alias anywhere.
+
+Save the file and re-open a Powershell Terminal, then navigate to your web root and type IISBuilder.
+
 ## Additional tips
 
 ### Attaching script to Visual Studio Post build event
