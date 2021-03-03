@@ -22,7 +22,7 @@ if((![string]::IsNullOrWhiteSpace($path))) {
 }
 
 if ((Test-Path "$dir\iis-config.json") -eq $false){
-    Write-Host "Could not find iis-config.json in $dir"
+    Write-Host "Could not find iis-config.json in '$dir'"
     exit
 }
 
