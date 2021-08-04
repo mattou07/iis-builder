@@ -126,7 +126,8 @@ function getSiteStatus($iis){
 function createAppPool($appPoolName, $runtimeVersion){
     #create the app pool
     $appPool = New-WebAppPool $appPoolName
-    $appPool | Set-ItemProperty -Name "managedRuntimeVersion" -Value $runtimeVersion
+    $appPool.managedRuntimeVersion = $runtimeVersion
+    $appPool | Set-Item
 }
 
 function createSite($iis){
