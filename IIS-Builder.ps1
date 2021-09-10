@@ -2,10 +2,11 @@ param ([string]$path)
 
 $script = $myinvocation.mycommand.definition
 $dir = Split-Path $MyInvocation.MyCommand.Path
-Write-Host "Script location $script"
-Write-Host "Script started in $dir"
+Write-Host 'Script location '($script)
+Write-Host 'Script started in '($dir)
 
 if((![string]::IsNullOrWhiteSpace($path))) {
+    Write-Host $($path)
     if((Test-Path $path)){
         if([System.IO.Path]::IsPathRooted($path)){
             $dir = $path
@@ -16,13 +17,13 @@ if((![string]::IsNullOrWhiteSpace($path))) {
         Write-Host "Path has been supplied passing in: $dir as working directory"
     }
     else {
-        Write-Host "Unable to locate $path please provide a valid path"
+        Write-Host "Unable to locate "($path)" please provide a valid path"
         exit
     }
 }
 
 if ((Test-Path "$dir\iis-config.json") -eq $false){
-    Write-Host "Could not find iis-config.json in $dir"
+    Write-Host "Could not find iis-config.json in "($dir)
     exit
 }
 
@@ -30,7 +31,7 @@ if ((Test-Path "$dir\iis-config.json") -eq $false){
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
 {
     Write-Host "Script has been opened without Admin permissions, attempting to restart as admin"
-    $arguments = "-noexit & '" + $script + "'","-path $dir"
+    $arguments = "-noexit & '" + $script + "'","-path " + "'"+$dir+"'"
     Start-Process powershell -Verb runAs -ArgumentList $arguments
     Break
 }
